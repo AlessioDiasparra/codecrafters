@@ -8,7 +8,7 @@ console.log("starting server");
    // Close the socket when the client closes the connection.
    // This is necessary to prevent the server from hanging.
    socket.on("close", () => {
-     socket.end();
+     socket.end("HTTP/1.1 200 OK\r\n\r\n");
    });
  });
 
