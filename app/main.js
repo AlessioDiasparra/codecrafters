@@ -6,31 +6,25 @@ console.log("HTTP/1.1 200 OK\\r\\n\\r\\n");
 // Create an HTTP server that listens on port 4221 on localhost.
 // It will send a 200 OK response to each incoming request and close the connection.
 // This is a very basic server that does not handle any requests other than the initial connection.
+// Create a TCP server that listens on port 4221 on localhost.
+// When a new socket is created, listen for data to be sent to the socket.
 const server = net.createServer(socket => {
-  // When a new client connects, send a 200 OK response and close the connection.
-  socket.write("HTTP/1.1 200 OK\\r\\n\\r\\n");
-  var data = "";
-  socket.on("data", function (dataChunk) {
-    data += dataChunk;
-    socket.on("end", function () {
-      var arrayData = data.split("");
-      const requestedpath = arrayData[1];
-      const Requesturl = requestedpath.split(" ");
-      console.log(requestedpath);
-      console.log(server.address());
-      console.log(server.address().port);
-      console.log(requestedpath.startsWith("/unknown/"));
-      if (requestedpath.startsWith("/unknown/")) {
-        socket.write("HTTP/1.1 404 Not Found\\r\\n\\r\\n");
-      } else {
-        socket.write("HTTP/1.1 200 OK\\r\\n\\r\\n");
-      }
-    });
-    // When the client closes the connection, close the server.
-
-    socket.on("close", () => {
-       //server.close();
-    });
+  // When data is sent to the socket, read the request line and extract the path.
+  socket.on("data", data => {
+    const requestLine = data.toString().split("\r\n")[0];
+    const requestedPath = requestLine.split(" ")[1];
+    // If the requested path is "/index.html", respond with a 200 OK status.
+    if (requestedPath === "/index.html") {
+      socket.write("HTTP/1.1 200 OK\r\n\r\n");
+    }
+    // Otherwise, respond with a 404 Not Found status.
+    else {
+      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
+    }
+    // Close the socket.
+    socket.end();
   });
 });
+// Start listening on port 4221 on localhost.
 server.listen(4221, "localhost");
+
