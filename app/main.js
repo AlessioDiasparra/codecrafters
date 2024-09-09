@@ -14,6 +14,14 @@ const server = net.createServer(socket => {
     if (requestedPath === "/index.html" || requestedPath === "/") {
       socket.write("HTTP/1.1 200 OK\r\n\r\n");
     }
+    // If the requested path is "/echo/{str}", respond with a 200 OK status,
+    // a Content-Type header set to text/plain, a Content-Length header set
+    // to the length of the given string, and a response body set to the given string.
+    else if (requestedPath.startsWith("/echo/")) {
+      const str = requestedPath.split("/")[2];
+      const length = Buffer.byteLength(str);
+      socket.write(`HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${length}\r\n\r\n${str}`);
+    }
     // Otherwise, respond with a 404 Not Found status.
     else {
       socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
@@ -22,5 +30,5 @@ const server = net.createServer(socket => {
     socket.end();
   });
 });
-server.listen(4221);
+server.listen(4221, "localhost");
 
