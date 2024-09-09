@@ -1,27 +1,23 @@
 const net = require("net");
-// You can use print statements as follows for debugging, they'll be visible when running tests.
-console.log("HTTP/1.1 200 OK\\r\\n\\r\\n");
-
-// Create an HTTP server that listens on port 4221 on localhost.
-// It will send a 200 OK response to each incoming request and close the connection.
-// This is a very basic server that does not handle any requests other than the initial connection.
-// Create a TCP server that listens on port 4221 on localhost.
-// When a new socket is created, listen for data to be sent to the socket.
-const server = net.createServer(socket => {
-  // When data is sent to the socket, read the request line and extract the path.
+const server = net.createServer((socket) => {
+  // Every time some data is received from the client, this callback is called
   socket.on('data', (data) => {
     const request = data.toString();
+    // If the request starts with "GET / ", respond with a 200 OK response
     if (request.startsWith('GET / ')) {
-      
-        const httpResponse = 'HTTP/1.1 200 OK\r\n\r\n';
-        socket.write(httpResponse);
+      const httpResponse = 'HTTP/1.1 200 OK\r\n\r\n';
+      socket.write(httpResponse);
     } else {
+      // Otherwise, respond with a 404 NOT FOUND response
       const httpResponse = 'HTTP/1.1 404 NOT FOUND\r\n\r\n';
-        socket.write(httpResponse);
+      socket.write(httpResponse);
     }
+    // Close the socket (i.e., end the connection)
     socket.end();
+  });
 });
+// Listen for incoming connections on port 4221
+server.listen(4221, "localhost", () => {
+  // Print a status message to the console
+  process.stdout.write("Listening on localhost:4221");
 });
-// Start listening on port 4221 on localhost.
-
-
