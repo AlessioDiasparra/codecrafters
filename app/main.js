@@ -40,3 +40,13 @@ const server = net.createServer(socket => {
   });
 });
 server.listen(4221, "localhost");
+
+// Gestire errori del server
+server.on('error', (err) => {
+  console.error('Errore del server:', err);
+});
+
+// Gestire la chiusura del server
+server.on('close', () => {
+  console.log('Server chiuso');
+});
