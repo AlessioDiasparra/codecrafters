@@ -1,52 +1,82 @@
-const net = require("net");
+const net = require('net');
+const fs = require('fs');
+const path = require('path');
 
-// Create an HTTP server that listens on port 4221 on localhost.
-// When a new socket is created, listen for data to be sent to the socket.
-const server = net.createServer(socket => {
-  // When data is sent to the socket, read the request line and extract the path.
-  socket.on("data", data => {
-    const request = data.toString().split("\r\n");
-    const requestedPath = request[0]?.split(" ")[1];
-    const userAgent = request.find(line => line.startsWith("User-Agent: "))?.split(": ")[1];
-    let length;
-    if (userAgent) {
-      length = Buffer.byteLength(userAgent);
+// Prendi il flag --directory dalla riga di comando
+const args = process.argv;
+const directoryFlagIndex = args.indexOf('--directory');
+const directory = directoryFlagIndex !== -1 ? args[directoryFlagIndex + 1] : '/tmp';  // Imposta /tmp come directory predefinita
+
+console.log(`Serving files from: ${directory}`);
+
+// Funzione per gestire la richiesta e risposta HTTP
+const handleRequest = (request, socket) => {
+  const [requestLine, ...headerLines] = request.split('\r\n');
+  const [method, url] = requestLine.split(' ');
+
+  // Crea un oggetto per gli headers
+  const headers = headerLines.reduce((acc, line) => {
+    const [key, value] = line.split(': ');
+    if (key && value) acc[key.toLowerCase()] = value;
+    return acc;
+  }, {});
+
+  if (method === 'GET') {
+    if (url === '/') {
+      const response = 'HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 12\r\n\r\nHello, World';
+      socket.write(response);
+      socket.end();
+    } else if (url.startsWith('/files/')) {
+      const filename = url.split('/files/')[1];
+      const filepath = path.join(directory, filename);
+
+      fs.stat(filepath, (err, stats) => {
+        if (err || !stats.isFile()) {
+          const response = 'HTTP/1.1 404 Not Found\r\n\r\n';
+          socket.write(response);
+          socket.end();
+          return;
+        }
+
+        const fileStream = fs.createReadStream(filepath);
+        const headers = `HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: ${stats.size}\r\n\r\n`;
+        socket.write(headers);
+        fileStream.on('data', (chunk) => socket.write(chunk));
+        fileStream.on('end', () => socket.end());
+      });
+    } else if (url === '/user-agent') {
+      // Restituisci solo il valore dell'header User-Agent
+      const userAgent = headers['user-agent'] || 'unknown';
+      const responseBody = `${userAgent}`;  // Solo il valore del User-Agent
+      const response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(responseBody)}\r\n\r\n${responseBody}`;
+      socket.write(response);
+      socket.end();
+    } else if (method === 'GET' && url.startsWith('/echo/')) {
+      const message = url.replace('/echo/', ''); // Estrai il messaggio dall'URL
+      const responseBody = message;
+      
+      // Creazione della risposta HTTP
+      const response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(responseBody)}\r\n\r\n${responseBody}`;
+      
+      socket.write(response);
+    } else {
+      const response = 'HTTP/1.1 404 Not Found\r\n\r\n';
+      socket.write(response);
+      socket.end();
     }
-    // If the requested path is "/user-agent", respond with a 200 OK status,
-    // a Content-Type header set to text/plain, a Content-Length header set
-    // to the length of the given string, and a response body set to the given string.
-    if (requestedPath === "/user-agent" && length) {
-      socket.write(`HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${length}\r\n\r\n${userAgent}`);
-    }
-    // If the requested path is "/echo", respond with a 200 OK status,
-    // a Content-Type header set to text/plain, a Content-Length header set
-    // to the length of the given string, and a response body set to the given string.
-    else if (requestedPath?.startsWith("/echo/")) {
-      const word = requestedPath.split("/")[2];
-      if (word) {
-        socket.write(`HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${word.length}\r\n\r\n${word}`);
-      } else {
-        socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
-      }
-    } else if (requestedPath === "/") {
-      socket.write("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 0\r\n\r\n");
-    }
-    // Otherwise, respond with a 404 Not Found status.
-    else {
-      socket.write("HTTP/1.1 404 Not Found\r\n\r\n");
-    }
-    // Close the socket.
-    socket.end();
+  }
+};
+
+// Creare il server con il modulo net
+const server = net.createServer((socket) => {
+  socket.on('data', (data) => {
+    const request = data.toString();
+    handleRequest(request, socket);
   });
 });
-server.listen(4221, "localhost");
 
-// Gestire errori del server
-server.on('error', (err) => {
-  console.error('Errore del server:', err);
-});
-
-// Gestire la chiusura del server
-server.on('close', () => {
-  console.log('Server chiuso');
+// Avvia il server sulla porta 4221
+const PORT = 4221;
+server.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
 });
