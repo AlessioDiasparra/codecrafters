@@ -72,11 +72,14 @@ const handleRequest = (data, socket) => {
       const message = url.replace("/echo/", ""); // Ottieni il messaggio dall'URL
       let response = '';
       const responseBody = message; // Il corpo della risposta è il messaggio
-      if (headers && headers["accept-encoding"] && headers["accept-encoding"] === "invalid-encoding") {
-        // Se l'header 'Accept-Encoding' è impostato su 'gzip' o 'invalid
+
+      if (headers && headers["accept-encoding"]) {
+        const singleSchemaCompression = headers["accept-encoding"]?.split(',');
+        if (singleSchemaCompression.includes(' gzip') || singleSchemaCompression.includes('gzip') ) {
+          response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\n\r\n`;
+        } else {
           response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n`;
-      } else if (headers && headers["accept-encoding"] && headers["accept-encoding"] === "gzip") {
-        response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\n\r\n`;
+        }
       }
        else {
         response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(responseBody)}\r\n\r\n${responseBody}`;
