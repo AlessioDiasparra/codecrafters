@@ -1,6 +1,7 @@
-const net = require('net'); // Importa il modulo 'net' per creare un server TCP
-const fs = require('fs');   // Modulo per gestire il file system
-const path = require('path'); // Modulo per gestire percorsi di file
+const net = require('node:net');
+const fs = require('node:fs');
+const path = require('node:path');
+const zlib = require('node:zlib');
 
 // Prendi il flag --directory dalla riga di comando, che specifica la directory da cui servire i file
 const args = process.argv;
@@ -9,12 +10,12 @@ const directory = directoryFlagIndex !== -1 ? args[directoryFlagIndex + 1] : '/t
 
 // Funzione per gestire le richieste e le risposte HTTP
 /**
- * Gestisce le richieste e le risposte HTTP.
+ * Gestisce i dati delle request e le response HTTP.
  * 
  * @param {string} data -  i dati (data) della request http richiesta HTTP ricevuta dal client.
  * @param {net.Socket} socket - Il socket del client.
  */
-const handleRequest = (data, socket) => {
+const handleRequest = async(data, socket) => {
   // Dividi la richiesta HTTP in linee
   const [requestLine, ...headerLines] = data.split("\r\n");
   const [method, url] = requestLine.split(" "); // Ottieni il metodo (GET) e l'URL dalla prima riga
@@ -61,32 +62,40 @@ const handleRequest = (data, socket) => {
     else if (url === "/user-agent") {
       const userAgent = headers["user-agent"] || "unknown"; // Recupera l'header 'User-Agent', o 'unknown' se non esiste
       const responseBody = `${userAgent}`; // Corpo della risposta è il valore di 'User-Agent'
-      const response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(
-        responseBody
-      )}\r\n\r\n${responseBody}`;
+      const response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(responseBody)}\r\n\r\n${responseBody}`;
       socket.write(response); // Invia la risposta con l'header e il corpo
       socket.end(); // Chiude la connessione
     }
     // Gestione dell'endpoint "/echo/{message}"
     else if (url.startsWith("/echo/")) {
-      const message = url.replace("/echo/", ""); // Ottieni il messaggio dall'URL
+      // Ottieni il messaggio dall'URL
+      const message = url.replace("/echo/", ""); 
       let response = '';
-      const responseBody = message; // Il corpo della risposta è il messaggio
-
+      const responseBody = message; 
+      // Compressa il response body con gzip
+      const compressedBody = zlib.gzipSync(responseBody);
       if (headers && headers["accept-encoding"]) {
         const singleSchemaCompression = headers["accept-encoding"]?.split(',');
-        if (singleSchemaCompression.includes(' gzip') || singleSchemaCompression.includes('gzip') ) {
-          response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\n\r\n`;
+        if (singleSchemaCompression.includes(' gzip') || singleSchemaCompression.includes('gzip')) {
+          response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\nContent-Length: ${compressedBody.length}\r\n\r\n`;
+          //converte la stringa in un Buffer usando codifica binaria
+          socket.write(response);
+          // codifica binaria non è adatta alle stringhe che contengono dati binari, come il corpo compresso
+          // Scrivi il body compresso al socket
+          socket.write(compressedBody);
+          socket.end();
         } else {
           response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n`;
+          socket.write(response);
+          socket.end();
         }
       }
-       else {
+      else {
         response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(responseBody)}\r\n\r\n${responseBody}`;
-      } 
-      socket.write(response); // Invia la risposta con il messaggio
+        socket.write(response);
+        socket.end();
+      }
     }
-    // Se nessuna condizione corrisponde, rispondi con 404
     else {
       response = "HTTP/1.1 404 Not Found\r\n\r\n";
       socket.write(response);
@@ -94,14 +103,18 @@ const handleRequest = (data, socket) => {
     }
   }
 
+  // /files/{filename} crea un file con il nome {filename} e scrivi il testo del body
   if (method === "POST") {
-    console.log("data :>> ", data);
     if (url.startsWith("/files/")) {
       const filename = url.split("/files/")[1]; // Ottieni il nome del file dall'URL
       const filepath = path.join(directory, filename); // Crea il percorso completo del file
       const file = data.toString("utf-8").split("\r\n\r\n")[1];
       fs.writeFileSync(filepath, file);
       socket.write("HTTP/1.1 201 Created\r\n\r\n");
+      socket.end();
+    }  else {
+      response = "HTTP/1.1 404 Not Found\r\n\r\n";
+      socket.write(response);
       socket.end();
     }
   }
@@ -111,12 +124,13 @@ const handleRequest = (data, socket) => {
 const server = net.createServer((socket) => {
   // dati inviati dal client (data body)
   socket.on('data', (data) => {
-    handleRequest(data.toString(), socket); // Gestisci la richiesta HTTP
+    // Gestisci la richiesta HTTP
+    handleRequest(data.toString(), socket); 
   });
 });
 
 // Avvia il server sulla porta 4221
 const PORT = 4221;
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`); // Stampa che il server è attivo
+  console.log(`Server is running on port ${PORT}`);
 });
