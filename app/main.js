@@ -70,15 +70,22 @@ const handleRequest = (data, socket) => {
     // Gestione dell'endpoint "/echo/{message}"
     else if (url.startsWith("/echo/")) {
       const message = url.replace("/echo/", ""); // Ottieni il messaggio dall'URL
+      let response = '';
       const responseBody = message; // Il corpo della risposta è il messaggio
-      const response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(
-        responseBody
-      )}\r\n\r\n${responseBody}`;
+      if (headers && headers["accept-encoding"] && headers["accept-encoding"] === "invalid-encoding") {
+        // Se l'header 'Accept-Encoding' è impostato su 'gzip' o 'invalid
+          response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\n\r\n`;
+      } else if (headers && headers["accept-encoding"] && headers["accept-encoding"] === "gzip") {
+        response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Encoding: gzip\r\n\r\n`;
+      }
+       else {
+        response = `HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: ${Buffer.byteLength(responseBody)}\r\n\r\n${responseBody}`;
+      } 
       socket.write(response); // Invia la risposta con il messaggio
     }
     // Se nessuna condizione corrisponde, rispondi con 404
     else {
-      const response = "HTTP/1.1 404 Not Found\r\n\r\n";
+      response = "HTTP/1.1 404 Not Found\r\n\r\n";
       socket.write(response);
       socket.end();
     }
