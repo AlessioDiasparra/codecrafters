@@ -130,7 +130,7 @@ const server = net.createServer((socket) => {
 });
 
 // Avvia il server sulla porta 4221
-const PORT = 4221;
+const PORT = process.env.PORT || 4221;
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
